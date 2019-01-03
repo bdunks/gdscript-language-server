@@ -1,0 +1,12 @@
+# SCsub
+Import('env')
+Import('env_modules')
+
+env_autocomplete_service = env_modules.Clone()
+
+if env['tools'] and env['gdscript']:
+    env_autocomplete_service.add_source_files(env.modules_sources,'*.cpp')
+    env_autocomplete_service.add_source_files(env.modules_sources,'./lsp/*.cpp')
+    env_autocomplete_service.add_source_files(env.modules_sources,'./lsp/procedures/*.cpp')
+else:
+    env_autocomplete_service.add_source_files(env.modules_sources,'register_types.cpp')
