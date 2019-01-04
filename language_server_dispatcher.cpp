@@ -25,7 +25,6 @@ ResponseError LanguageServerDispatcher::dispatch(Request &request, Response &ret
 
 template <typename T>
 void LanguageServerDispatcher::_register_procedure(String &method) {
-	//TODO - check procedure doesn't already exist
 	//Wrap the procedure class in a variant so we can use the ->call functionality
 	if (procedures[method].is_zero()) {
 		ClassDB::register_class<T>();
@@ -33,7 +32,9 @@ void LanguageServerDispatcher::_register_procedure(String &method) {
 		procedures[method] = procedure;
 
 	} else {
-		ERR_PRINT("Attempted to register an LSP proceedure multiple times.  Only first proceedure is registered.");	
+		String err_message = "Attempted to register an LSP procedure multiple times on the ";
+		err_message += method + " method.  Only the first procedure registered will be invoked.";
+		ERR_PRINT(err_message.utf8());	
 		}
 
 };
@@ -61,7 +62,6 @@ Response LanguageServerDispatcher::_create_response(Request &request, Variant &r
 
 LanguageServerDispatcher::LanguageServerDispatcher() {
 	// Text Synchronization Messages
-	_register_procedure<DidOpen>(String("textDocument/didOpen"));
 	_register_procedure<DidOpen>(String("textDocument/didOpen"));
 	//... add more Text Sync messages here
 
