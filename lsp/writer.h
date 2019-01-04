@@ -12,6 +12,10 @@ class Writer {
 public:
 	static String write_response(Response &response);
 	static String write_error_response(Request &request, ResponseError &error);
+	static String write_no_response();
+	static String write_bad_request_response();
+private:
+	static void _add_header_part(String &string_resp);
 };
 } // namespace lsp
 

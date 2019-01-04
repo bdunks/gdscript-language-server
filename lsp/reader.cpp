@@ -27,8 +27,9 @@ ResponseError Reader::parse_request(String &connection_data, Request &ret_req) {
 };
 
 ResponseError Reader::_get_json_object(String &data, Variant &ret_obj) {
-	int header_break = data.find("\r\n\r\n", 0);
-	String message = data.right(header_break + 4);
+	// Per LSP specification, '\r\n\r\n' is a valid way to identify the header
+	const int header_seperator = data.find("\r\n\r\n", 0);
+	String message = data.right(header_seperator + 4);
 	
 	ResponseError err;
 	Variant parsed_message;
@@ -38,7 +39,7 @@ ResponseError Reader::_get_json_object(String &data, Variant &ret_obj) {
 	const Error godot_err = JSON::parse(message, ret_obj, error_string, error_line);
 	if (godot_err != Error::OK) {
 		err.code = PARSE_ERROR;
-		err.message = error_string;
+		err.message = "Parsing Error: " + error_string + "at line " + itos(error_line);
 	}
 	return err;
 };
@@ -48,7 +49,7 @@ ResponseError Reader::_validate_json_object(Variant &object) {
 
 	if (object.get_type() != Variant::DICTIONARY) {
 		err.code = PARSE_ERROR;
-		err.message = "Could not parse `params` to a Dictionary";
+		err.message = "Parsing Error: Could not parse `params` to a Dictionary";
 		return err;
 		}
 

@@ -9,11 +9,11 @@ String Writer::write_response(Response &response) {
 	resp_dict["jsonrpc"] = "2.0";
 	resp_dict["id"] = response.id;
 	resp_dict["result"] = response.result;
-	String json = JSON::print(resp_dict);
-	return json.json_escape();
+	String response_string = JSON::print(resp_dict);
 
-	//TODO = throw in some HTTP Headers
-};
+	_add_header_part(response_string);
+	return response_string;
+}
 
 String Writer::write_error_response(Request &request, ResponseError &error) {
 	Dictionary error_dict;
@@ -28,9 +28,32 @@ String Writer::write_error_response(Request &request, ResponseError &error) {
 	resp_dict["jsonrpc"] = "2.0";
 	resp_dict["id"] = request.id;
 	resp_dict["error"] = error_dict;
-	String json = JSON::print(resp_dict);
-	return json.json_escape();
+	String response_string = JSON::print(resp_dict);
 
-	//TODO = throw in some HTTP Headers
-};
+	_add_header_part(response_string);
+	return response_string;
+}
+
+String Writer::write_no_response() {
+	String header = "HTTP/1.1 204 No Content\r\n";
+	header += "\r\n"; //- close header section
+	return header;
+}
+
+String Writer::write_bad_request_response() {
+	String header = "HTTP/1.1 400 Bad Request\r\n";
+	header += "Accept: application/json\r\n";
+	header += "Accept-Charset: utf-8\r\n";
+	header += "\r\n"; //- close header section
+	return header;
+}
+
+void Writer::_add_header_part(String &string_resp) {
+	String header = "HTTP/1.1 200 OK\r\n";
+	header += "Content-Length: " + itos(string_resp.length()) + "\r\n";
+	header += "Content-Type: application/json; charset=utf-8\r\n";
+	header += "\r\n"; //- close header section
+
+	string_resp = header + string_resp;
+}
 } // namespace lsp

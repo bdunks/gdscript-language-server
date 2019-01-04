@@ -15,7 +15,7 @@ String LanguageServer::process_connection_data(String &connection_data) {
 	err = Reader::parse_request(connection_data, request);
 	if (err.code != OK) {
 		return lsp::Writer::write_error_response(request, err);
-		}
+	}
 
 	err = dispatcher.dispatch(request, response);
 	if (err.code != OK) {
@@ -23,14 +23,14 @@ String LanguageServer::process_connection_data(String &connection_data) {
 	}
 	// Assume notification, no response expected.
 	if (err.code == OK && response.result.is_zero()) {
-		return String();
-		}
+		return Writer::write_no_response();
+	}
 	return Writer::write_response(response);
 }
 
 void LanguageServer::thread_func(void *p_udata) {
 
-	auto *ls = reinterpret_cast<LanguageServer*>(p_udata);
+	auto *ls = reinterpret_cast<LanguageServer *>(p_udata);
 	const uint64_t ms_delay = 1000;
 
 	while (!ls->exit_thread) {
@@ -52,14 +52,18 @@ void LanguageServer::thread_func(void *p_udata) {
 			continue;
 		}
 		const int bytes = ls->connection->get_available_bytes();
-		String connection_data = ls->connection->get_string(bytes);
+		String connection_data = ls->connection->get_utf8_string(bytes);
 		if (connection_data.length() < 1) {
-			//TODO - Create blank error that can be sent for some of these scenarios
+			//Ignore blank connection data sent by some clients as initial request
 			continue;
 		}
 
 		String connection_response = ls->process_connection_data(connection_data);
-		ls->connection->put_string(connection_response);
+
+		// Cannot directly put_string or it will be padded with additional data
+		CharString utf = connection_response.utf8();
+		ls->connection->put_data((const uint8_t *)utf.get_data(), utf.length());
+
 		ls->connection->disconnect_from_host();
 	}
 }
