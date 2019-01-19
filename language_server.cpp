@@ -10,12 +10,18 @@ namespace lsp {
 void LanguageServer::_thread_listener(void *p_udata) {
 
 	auto *ls = reinterpret_cast<LanguageServer *>(p_udata);
-	const uint64_t ms_delay = 1000;
+	const uint64_t ms_delay = 100;
 
 	while (!ls->exit_listener_thread) {
 		ls->_check_for_new_connection_request();
 		ls->_process_open_connections();
 		OS::get_singleton()->delay_usec(ms_delay * 1000);
+		//Extend sleep when waiting for new connection to ensure post data is fully received
+		if (ls->connections.empty()) {
+			OS::get_singleton()->delay_usec(ms_delay * 1000 * 20);
+		} else {
+			OS::get_singleton()->delay_usec(ms_delay * 1000);
+		}
 	}
 }
 
