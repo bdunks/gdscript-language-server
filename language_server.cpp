@@ -2,106 +2,164 @@
 
 #include "language_server.h"
 #include "core/os/os.h"
-#include "lsp/protocol/request.h"
-#include "lsp/protocol/response.h"
 #include "lsp/reader.h"
 #include "lsp/writer.h"
 
 namespace lsp {
-String LanguageServer::process_connection_data(String &connection_data) {
-	Request request;
-	Response response;
-	ResponseError err;
-	err = Reader::parse_request(connection_data, request);
-	if (err.code != OK) {
-		return lsp::Writer::write_error_response(request, err);
-	}
 
-	err = dispatcher.dispatch(request, response);
-	if (err.code != OK) {
-		return Writer::write_error_response(request, err);
-	}
-	// Assume notification, no response expected.
-	if (err.code == OK && response.result.is_zero()) {
-		return Writer::write_no_response();
-	}
-	return Writer::write_response(response);
-}
-
-void LanguageServer::thread_func(void *p_udata) {
+void LanguageServer::_thread_listener(void *p_udata) {
 
 	auto *ls = reinterpret_cast<LanguageServer *>(p_udata);
 	const uint64_t ms_delay = 1000;
 
-	while (!ls->exit_thread) {
-
-		// Delay at top of loop so it is hit if we've continued from an error condition
+	while (!ls->exit_listener_thread) {
+		ls->_check_for_new_connection_request();
+		ls->_process_open_connections();
 		OS::get_singleton()->delay_usec(ms_delay * 1000);
+	}
+}
 
-		if (ls->server->is_connection_available()) {
-			ls->connection = ls->server->take_connection();
-			if (ls->connection.is_null()) {
+void LanguageServer::_check_for_new_connection_request() {
+
+	if (!server->is_connection_available()) {
+		return;
+	}
+
+	Ref<StreamPeerTCP> connection = server->take_connection();
+	if (connection.is_null() || !connection->is_connected_to_host()) {
+		return;
+	}
+
+	const int bytes = connection->get_available_bytes();
+	String connection_data = connection->get_utf8_string(bytes);
+	if (connection_data.length() < 1) {
+		//Ignore blank connection data sent by some clients as initial request
+		return;
+	}
+
+	// -- Attempt to launch new LSP Thread
+	CharString utf_response;
+	Dictionary json_request;
+	ResponseError lsp_error = Reader::parse_json_request(connection_data, json_request);
+
+	const String host = json_request["host"];
+	const int port = json_request["port"];
+
+	if (host.empty() || port == 0) {
+		print_error("Received invalid request without host / port");
+		utf_response = Writer::write_bad_request_response().utf8();
+	}
+
+	IP_Address ip;
+
+	if (host.is_valid_ip_address()) {
+		ip = host;
+	} else {
+		ip = IP::get_singleton()->resolve_hostname(host);
+	}
+
+	// Create a new Stream Peer based on the editor's requested port
+	Ref<StreamPeerTCP> client;
+	client.instance();
+
+	print_line("Connecting to language server client: " + String(ip) + ":" + itos(port));
+	Error err = client->connect_to_host(ip, port);
+
+	if (client->get_status() == StreamPeerTCP::STATUS_CONNECTED) {
+		_create_connection(client);
+		utf_response = Writer::write_no_response().utf8();
+	} else {
+		print_error("Can't connect to IP: " + String(ip) + " port " + itos(port));
+		utf_response = Writer::write_bad_request_response().utf8();
+	}
+
+	connection->put_data((const uint8_t *)utf_response.get_data(), utf_response.length());
+	connection->disconnect_from_host();
+}
+
+void LanguageServer::_process_open_connections() {
+	for (Set<RID>::Element *e = connections.front(); e; e = e->next()) {
+		auto lsc = connection_owner.getornull(e->get());
+
+		if (lsc) {
+			if (lsc->connection->get_status() != StreamPeerTCP::STATUS_CONNECTED) {
+				_delete_connection(e->get());
 				continue;
 			}
-		} else {
-			continue;
+			const int bytes = lsc->connection->get_available_bytes();
+			String connection_data = lsc->connection->get_utf8_string(bytes);
+			if (connection_data.length() < 1) {
+				continue;
+			}
+
+			String connection_response = get_singleton()->dispatcher.process_connection_data(connection_data);
+			if (!connection_response.empty()) {
+				// Explicitly convert to UTF8.  Using ->put_string() will padded with additional data.
+				CharString utf = connection_response.utf8();
+				lsc->connection->put_data((const uint8_t *)utf.get_data(), utf.length());
+			}
 		}
-
-		if (!ls->connection->is_connected_to_host()) {
-			//Connection Broke
-			continue;
-		}
-		const int bytes = ls->connection->get_available_bytes();
-		String connection_data = ls->connection->get_utf8_string(bytes);
-		if (connection_data.length() < 1) {
-			//Ignore blank connection data sent by some clients as initial request
-			continue;
-		}
-
-		String connection_response = ls->process_connection_data(connection_data);
-
-		// Cannot directly put_string or it will be padded with additional data
-		CharString utf = connection_response.utf8();
-		ls->connection->put_data((const uint8_t *)utf.get_data(), utf.length());
-
-		ls->connection->disconnect_from_host();
 	}
+}
+
+RID LanguageServer::_create_connection(Ref<StreamPeerTCP> &connection) {
+	lock();
+	LanguageServerConnection *lsc = memnew(LanguageServerConnection(connection));
+	RID rid = connection_owner.make_rid(lsc);
+	connections.insert(rid);
+	unlock();
+	return rid;
+}
+
+bool LanguageServer::_delete_connection(RID id) {
+	if (connection_owner.owns(id)) {
+		lock();
+		LanguageServerConnection *lsc = connection_owner.get(id);
+		connection_owner.free(id);
+		connections.erase(id);
+		memdelete(lsc);
+		unlock();
+		return true;
+	}
+	return false;
 }
 
 Error LanguageServer::init() {
 	server.instance();
-	const int remote_port = 6071;
+	//Listen on port G-O-D-O-T.
+	const int remote_port = 46368;
 	Error err = server->listen(remote_port);
 	if (err != Error::OK) {
 		return err;
 	}
 
-	exit_thread = false;
+	exit_listener_thread = false;
 	mutex = Mutex::create();
-	thread = Thread::create(thread_func, this);
+	listener_thread = Thread::create(_thread_listener, this);
 	return Error::OK;
 }
 
 void LanguageServer::finish() {
-	if (!thread) {
+	if (!listener_thread) {
 		return;
 	}
 
-	exit_thread = true;
-	Thread::wait_to_finish(thread);
+	exit_listener_thread = true;
 
-	memdelete(thread);
+	Thread::wait_to_finish(listener_thread);
+
+	memdelete(listener_thread);
 
 	if (mutex) {
 		memdelete(mutex);
 	}
 
-	thread = nullptr;
+	listener_thread = nullptr;
 	server->stop();
 }
 
 void LanguageServer::unlock() {
-	if (!thread || !mutex) {
+	if (!listener_thread || !mutex) {
 		return;
 	}
 
@@ -109,7 +167,7 @@ void LanguageServer::unlock() {
 }
 
 void LanguageServer::lock() {
-	if (!thread || !mutex) {
+	if (!listener_thread || !mutex) {
 		return;
 	}
 

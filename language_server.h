@@ -2,31 +2,50 @@
 #ifndef LANGUAGE_SERVER_H
 #define LANGUAGE_SERVER_H
 
+#include "core/rid.h"
 #include "core/io/packet_peer.h"
 #include "core/io/tcp_server.h"
+#include "core/io/stream_peer_tcp.h"
 #include "core/object.h"
 #include "core/os/mutex.h"
 #include "core/os/thread.h"
 #include "language_server_dispatcher.h"
 
 namespace lsp {
+
+class LanguageServerConnection : public RID_Data {
+
+public:
+	Ref<StreamPeerTCP> connection;
+	LanguageServerConnection(const Ref<StreamPeerTCP> &connection) :
+			connection(connection){};
+	~LanguageServerConnection() = default;
+};
+
 class LanguageServer : public Object {
 	GDCLASS(LanguageServer, Object);
 
 private:
 	static LanguageServer *singleton;
-	static void thread_func(void *p_udata);
+	static void _thread_listener(void *p_udata);
+
+	void _check_for_new_connection_request();
+	void _process_open_connections();
+
+	RID _create_connection(Ref<StreamPeerTCP> &connection);
+	bool _delete_connection(RID id);
+
 
 	Ref<TCP_Server> server;
-	Ref<StreamPeerTCP> connection;
+	Ref<StreamPeerTCP> _to_delete_connection;
 	LanguageServerDispatcher dispatcher;
 
-	// Note - We are currently running the server in a single thread so the mutex, 
-	// lock(), and unlock() are not used.  Will be used if requests are processed in 
-	//sub-threads to manage queuing, etc.
-	mutable bool exit_thread;
-	Thread *thread;
+	mutable bool exit_listener_thread;
+	Thread *listener_thread;
 	Mutex *mutex;
+
+	RID_Owner<LanguageServerConnection> connection_owner;
+	Set<RID> connections;
 
 public:
 	static LanguageServer *get_singleton();
@@ -34,7 +53,7 @@ public:
 	void lock();
 	void unlock();
 	void finish();
-	String process_connection_data(String &connection_data);
+
 
 	LanguageServer();
 	~LanguageServer();

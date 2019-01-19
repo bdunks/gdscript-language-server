@@ -42,16 +42,15 @@ String Writer::write_no_response() {
 
 String Writer::write_bad_request_response() {
 	String header = "HTTP/1.1 400 Bad Request\r\n";
-	header += "Accept: application/json\r\n";
+	header += "Accept: application/vscode-jsonrpc\r\n";
 	header += "Accept-Charset: utf-8\r\n";
 	header += "\r\n"; //- close header section
 	return header;
 }
 
 void Writer::_add_header_part(String &string_resp) {
-	String header = "HTTP/1.1 200 OK\r\n";
-	header += "Content-Length: " + itos(string_resp.length()) + "\r\n";
-	header += "Content-Type: application/json; charset=utf-8\r\n";
+	String header = "Content-Length: " + itos(string_resp.length()) + "\r\n";
+	header += "Content-Type: application/vscode-jsonrpc; charset=utf-8\r\n";
 	header += "\r\n"; //- close header section
 
 	string_resp = header + string_resp;

@@ -16,7 +16,7 @@ protected:
 	static void _bind_methods();
 
 public:
-	Variant invoke(const Variant &parameters);
+	Variant run(const Variant& parameters) override;
 
 };
 } // namespace lsp

@@ -12,7 +12,7 @@ class Procedure : public Object {
 	GDCLASS(Procedure, Object);
 
 public:
-	virtual Variant invoke(const Variant &parameters) = 0;
+	virtual Variant run(const Variant &parameters) = 0;
 
 };
 }

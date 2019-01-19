@@ -1,4 +1,4 @@
-/* language_completion.h */
+/* completion.h */
 
 #ifndef LSP_PROCEDURES_COMPLETION_H
 #define LSP_PROCEDURES_COMPLETION_H
@@ -16,10 +16,11 @@ namespace lsp {
 		static void _bind_methods();
 
 	public:
-		Variant invoke(const Variant &parameters);
+		Variant run(const Variant &parameters) override;
 
 	private:
 		Dictionary _convert_completion_to_dict(CompletionList &completionList);
+		Dictionary _create_completion_item(String &item);
 	};
 }
 

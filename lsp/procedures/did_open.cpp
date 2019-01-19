@@ -3,17 +3,15 @@
 #include "did_open.h"
 
 namespace lsp {
-Variant DidOpen::invoke(const Variant &parameters) {
-	CompletionList completionList;
-
+Variant DidOpen::run(const Variant &parameters) {
 	// Stub -- Could potentially send a notification to Godot Editor
 
-	// Return empty string to signal this is a message;
+	// Return empty string to signal this is a notification;
 	return String();
 };
 
 
 void DidOpen::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("invoke", "parameters"), &DidOpen::invoke);
+	ClassDB::bind_method(D_METHOD("run", "parameters"), &DidOpen::run);
 }
 } // namespace lsp

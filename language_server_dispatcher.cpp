@@ -3,14 +3,40 @@
 #include "language_server_dispatcher.h"
 #include "lsp/protocol/request.h"
 #include "lsp/protocol/response.h"
+#include "lsp/reader.h"
+#include "lsp/writer.h"
 
 /* LSP Procedures */
 #include "lsp/procedures/completion.h"
 #include "lsp/procedures/did_open.h"
+#include "lsp/procedures/initialize.h"
+#include "lsp/procedures/initialized.h"
 //...
 
 namespace lsp {
-ResponseError LanguageServerDispatcher::dispatch(Request &request, Response &ret_resp) {
+
+String LanguageServerDispatcher::process_connection_data(String &connection_data) {
+	Request request;
+	Response response;
+	ResponseError err;
+	err = Reader::parse_rpc_request(connection_data, request);
+	if (err.code != OK) {
+		return Writer::write_error_response(request, err);
+	}
+
+	err = dispatch_request(request, response);
+	if (err.code != OK) {
+		return Writer::write_error_response(request, err);
+	}
+	// Assume notification, no response expected.
+	if (err.code == OK && response.result.is_zero()) {
+		return String();
+	}
+
+	return Writer::write_response(response);
+}
+
+ResponseError LanguageServerDispatcher::dispatch_request(Request &request, Response &ret_resp) {
 	Variant procedure;
 	ResponseError err = _get_procedure(request.method, procedure);
 
@@ -18,7 +44,7 @@ ResponseError LanguageServerDispatcher::dispatch(Request &request, Response &ret
 		return err;
 	}
 
-	Variant results = procedure.call("invoke", request.parameters);
+	Variant results = procedure.call("run", request.parameters);
 	ret_resp = _create_response(request, results);
 	return err;
 };
@@ -61,6 +87,9 @@ Response LanguageServerDispatcher::_create_response(Request &request, Variant &r
 };
 
 LanguageServerDispatcher::LanguageServerDispatcher() {
+	_register_procedure<Initialize>(String("initialize"));
+	_register_procedure<Initialized>(String("initialized"));
+
 	// Text Synchronization Messages
 	_register_procedure<DidOpen>(String("textDocument/didOpen"));
 	//... add more Text Sync messages here

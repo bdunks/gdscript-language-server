@@ -4,7 +4,21 @@
 #include "core/io/json.h"
 
 namespace lsp {
-ResponseError Reader::parse_request(String &connection_data, Request &ret_req) {
+ResponseError Reader::parse_rpc_request(String &connection_data, Request &ret_req) {
+	Dictionary json_object;
+	ResponseError err = parse_json_request(connection_data, json_object);
+
+	_populate_request(json_object, ret_req);
+	err = _validate_request(ret_req);
+
+	if (err.code != OK) {
+		return err;
+	}
+
+	return err;
+}
+
+ResponseError Reader::parse_json_request(String &connection_data, Dictionary &ret_json_obj) {
 	Variant json_object;
 	ResponseError err = _get_json_object(connection_data, json_object);
 	if (err.code != OK) {
@@ -15,16 +29,9 @@ ResponseError Reader::parse_request(String &connection_data, Request &ret_req) {
 	if (err.code != OK) {
 		return err;
 	}
-
-	_populate_request(json_object, ret_req);
-	err = _validate_request(ret_req);
-
-	if (err.code != OK) {
-		return err;
-	}
-
+	ret_json_obj = json_object;
 	return err;
-};
+}
 
 ResponseError Reader::_get_json_object(String &data, Variant &ret_obj) {
 	// Per LSP specification, '\r\n\r\n' is a valid way to identify the header
@@ -42,7 +49,7 @@ ResponseError Reader::_get_json_object(String &data, Variant &ret_obj) {
 		err.message = "Parsing Error: " + error_string + "at line " + itos(error_line);
 	}
 	return err;
-};
+}
 
 ResponseError Reader::_validate_json_object(Variant &object) {
 	ResponseError err;
@@ -56,14 +63,12 @@ ResponseError Reader::_validate_json_object(Variant &object) {
 	return err;
 };
 
-void Reader::_populate_request(Variant &object, Request &ret_req) {
-	Dictionary request_dict = object;
-	ret_req.jsonrpc = request_dict["jsonrpc"];
-	ret_req.id = request_dict["id"]; //May be blank, which is valid for Notifications
-	ret_req.method = request_dict["method"];
-	ret_req.parameters = request_dict["params"];
-	;
-};
+void Reader::_populate_request(Dictionary &json_obj, Request &ret_req) {
+	ret_req.jsonrpc = json_obj["jsonrpc"];
+	ret_req.id = json_obj["id"]; //May be blank, which is valid for Notifications
+	ret_req.method = json_obj["method"];
+	ret_req.parameters = json_obj["params"];
+}
 
 ResponseError Reader::_validate_request(Request &ret_req) {
 	ResponseError err;
@@ -80,5 +85,5 @@ ResponseError Reader::_validate_request(Request &ret_req) {
 	}
 	
 	return err;
-};
+}
 } // namespace lsp
