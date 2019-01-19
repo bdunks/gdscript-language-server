@@ -5,7 +5,22 @@ GDScript Language Server aspiring to implement the [LSP specification](https://m
 1. Following the [Compiling Instructions](http://docs.godotengine.org/en/3.0/development/compiling/index.html) for your platform *with tools included* to verify you have a working build.
 2. Add as a submodule to your godot source directory, e.g.:  `git submodule add https://github.com/bdunks/gdscript-language-server modules/gdscript-language_server`
 3. Rebuild using the compilation steps from step #1
-4. The server will begin accepting requests at http://localhost:6071 when the Godot Project Manager or Godot Editor starts
+
+#### Server Usage
+
+The server will begin listeng to http://localhost:46368 for new clients when the Godot Project Manager or Godot Editor starts (`:46368` = `G-O-D-O-T`).  
+
+For compatibility with the vscode-jsonrpc (which is used as the base for both VSCode and Atom-IDE language client implementations), the langauge server expects the client to open its own TCP socket.  
+
+The request to :46368 should be a simply json post, telling the language server to create a connection to a specific port:
+```
+{ 
+  host: '127.0.0.1',
+  port: {port negotiated by client} 
+}
+```
+
+The jsonrpc requests/notifications will be processed on these connection(s) while they remain open.  Requests to `:46368` can only open new connections -- it will not respond to jsonrpc commands.
 
 #### Editor Integrations
 
