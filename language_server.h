@@ -38,7 +38,7 @@ private:
 
 	Ref<TCP_Server> server;
 	Ref<StreamPeerTCP> _to_delete_connection;
-	LanguageServerDispatcher dispatcher;
+	LanguageServerDispatcher *dispatcher;
 
 	mutable bool exit_listener_thread;
 	Thread *listener_thread;

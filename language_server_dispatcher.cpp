@@ -60,9 +60,8 @@ void LanguageServerDispatcher::_register_procedure(String &method) {
 	} else {
 		String err_message = "Attempted to register an LSP procedure multiple times on the ";
 		err_message += method + " method.  Only the first procedure registered will be invoked.";
-		ERR_PRINT(err_message.utf8());	
-		}
-
+		ERR_PRINT(err_message.utf8());
+	}
 };
 
 ResponseError LanguageServerDispatcher::_get_procedure(String &method, Variant &ret_procedure) {
@@ -97,6 +96,15 @@ LanguageServerDispatcher::LanguageServerDispatcher() {
 	// Language Feature Messages
 	_register_procedure<Completion>(String("textDocument/completion"));
 	//... add more Language Feature Messages here
+}
+
+LanguageServerDispatcher::~LanguageServerDispatcher() {
+	Array delete_queue = procedures.values();
+	
+	while (!delete_queue.empty()) {
+		Object *obj = delete_queue.pop_front();
+		memdelete(obj);
+	}
 }
 }; // namespace lsp
 		;

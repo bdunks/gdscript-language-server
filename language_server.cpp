@@ -98,7 +98,7 @@ void LanguageServer::_process_open_connections() {
 				continue;
 			}
 
-			String connection_response = get_singleton()->dispatcher.process_connection_data(connection_data);
+			String connection_response = get_singleton()->dispatcher->process_connection_data(connection_data);
 			if (!connection_response.empty()) {
 				// Explicitly convert to UTF8.  Using ->put_string() will padded with additional data.
 				CharString utf = connection_response.utf8();
@@ -131,6 +131,7 @@ bool LanguageServer::_delete_connection(RID id) {
 }
 
 Error LanguageServer::init() {
+	dispatcher = memnew(LanguageServerDispatcher);
 	server.instance();
 	//Listen on port G-O-D-O-T.
 	const int remote_port = 46368;
@@ -138,7 +139,6 @@ Error LanguageServer::init() {
 	if (err != Error::OK) {
 		return err;
 	}
-
 	exit_listener_thread = false;
 	mutex = Mutex::create();
 	listener_thread = Thread::create(_thread_listener, this);
@@ -160,6 +160,8 @@ void LanguageServer::finish() {
 		memdelete(mutex);
 	}
 
+	memdelete(dispatcher);
+	
 	listener_thread = nullptr;
 	server->stop();
 }

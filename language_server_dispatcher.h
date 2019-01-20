@@ -13,6 +13,7 @@ namespace lsp {
 class LanguageServerDispatcher {
 public:
 	LanguageServerDispatcher();
+	~LanguageServerDispatcher();
 	String process_connection_data(String &connection_data);
 	ResponseError dispatch_request(Request &request, Response &ret_resp);
 
